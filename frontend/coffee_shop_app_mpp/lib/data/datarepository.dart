@@ -1,21 +1,44 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:coffee_shop_app_mpp/data/stats.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'package:mime/mime.dart';
+import 'package:web_socket_channel/io.dart';
 
 import 'product.dart';
 
 class DataRepository {
   final String baseUrl = 'http://localhost:3000/products';
+  final String statsUrl = 'http://localhost:3000/stats';
+  final _channel = IOWebSocketChannel.connect('ws://localhost:3000');
+  final _statsChannel = IOWebSocketChannel.connect('ws://localhost:3000/stats');
 
-  /// Fetch all products
-  Future<List<Product>> getProducts() async {
+  late final Stream<List<Product>> _productBroadcastStream =
+      _channel.stream.map((data) {
+    final decoded = jsonDecode(data);
+    return (decoded as List).map((item) => Product.fromJson(item)).toList();
+  }).asBroadcastStream();
+
+  late final Stream<ProductStats> _statsBroadcastStream =
+      _statsChannel.stream.map((data) {
+    final decoded = jsonDecode(data);
+    print(ProductStats.fromJson(decoded).toString());
+    return ProductStats.fromJson(decoded);
+  }).asBroadcastStream();
+
+  Stream<List<Product>> get productStream => _productBroadcastStream;
+  Stream<ProductStats> get statsStream => _statsBroadcastStream;
+
+  Future<List<Product>> getProducts({int offset = 0, int limit = 6}) async {
     try {
-      final response = await http.get(Uri.parse(baseUrl));
+      final response =
+          await http.get(Uri.parse('$baseUrl?offset=$offset&limit=$limit'));
       if (response.statusCode == 200) {
         List<dynamic> data = json.decode(response.body);
-        return data.map((json) => Product.fromJson(json)).toList();
+        return data.map((json) {
+          return Product.fromJson(json);
+        }).toList();
       } else {
         throw Exception('Failed to load products');
       }
@@ -25,9 +48,11 @@ class DataRepository {
   }
 
   /// Fetch only vegan products
-  Future<List<Product>> getVeganProducts() async {
+  Future<List<Product>> getVeganProducts(
+      {int offset = 0, int limit = 6}) async {
     try {
-      final response = await http.get(Uri.parse('$baseUrl/vegan'));
+      final response = await http
+          .get(Uri.parse('$baseUrl/vegan?offset=$offset&limit=$limit'));
       if (response.statusCode == 200) {
         List<dynamic> data = json.decode(response.body);
         return data.map((json) => Product.fromJson(json)).toList();

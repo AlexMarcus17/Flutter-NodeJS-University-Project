@@ -1,12 +1,23 @@
 import 'package:coffee_shop_app_mpp/data/datarepository.dart';
 import 'package:coffee_shop_app_mpp/data/product.dart';
+import 'package:coffee_shop_app_mpp/data/stats.dart';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart';
 
 class DataProvider extends ChangeNotifier {
   DataRepository dataRepository;
-  DataProvider({required this.dataRepository}) {}
+  DataProvider({required this.dataRepository}) {
+    fetchInitialProducts();
+    fetchInitialVeganProducts();
+    productsStreamListener();
+    statsStreamListener();
+  }
 
   List<Product> _products = [];
+  List<Product> _veganProducts = [];
+  List<Product> _cachedStreamProducts = [];
+  ProductStats _cachedStreamStats = ProductStats(
+      lastCreatedAt: DateTime.now(), avgVeganPrice: 0, avgCaffeinatedPrice: 0);
   //   [
   //   Product(
   //       id: 1.toString(),
@@ -67,11 +78,89 @@ class DataProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<List<Product>> get products async {
-    _products = showVegan
-        ? await dataRepository.getVeganProducts() // Fetch only vegan products
-        : await dataRepository.getProducts(); // Fetch all products
-    return _products;
+  void updateStreamProducts(List<Product> products) {
+    _cachedStreamProducts = products;
+    notifyListeners();
+  }
+
+  List<Product> get cachedStreamProducts {
+    return _cachedStreamProducts;
+  }
+
+  Stream<ProductStats> get statsStream {
+    return dataRepository.statsStream;
+  }
+
+  statsStreamListener() {
+    dataRepository.statsStream.listen((products) {
+      print("Stats Stream: $products");
+      _cachedStreamStats = products;
+      notifyListeners();
+    });
+  }
+
+  void updateStreamStats(ProductStats products) {
+    _cachedStreamStats = products;
+    notifyListeners();
+  }
+
+  ProductStats get cachedStreamStats {
+    return _cachedStreamStats;
+  }
+
+  Future<void> fetchInitialProducts() async {
+    if (_products.isEmpty) {
+      final newProducts =
+          await dataRepository.getProducts(offset: 0, limit: 12);
+      _products.addAll(newProducts);
+      notifyListeners();
+    }
+  }
+
+  Future<void> fetchInitialVeganProducts() async {
+    if (_veganProducts.isEmpty) {
+      final newVeganProducts =
+          await dataRepository.getVeganProducts(offset: 0, limit: 12);
+      _veganProducts.addAll(newVeganProducts);
+      notifyListeners();
+    }
+  }
+
+  Future<void> fetchMoreProducts() async {
+    final newProducts = showVegan
+        ? await dataRepository.getVeganProducts(
+            offset: _products.length,
+            limit: 6,
+          )
+        : await dataRepository.getProducts(
+            offset: _products.length,
+            limit: 6,
+          );
+
+    if (newProducts.isNotEmpty) {
+      if (showVegan) {
+        _veganProducts.addAll(newProducts);
+      } else {
+        _products.addAll(newProducts);
+      }
+      notifyListeners();
+    }
+  }
+
+  List<Product> get products {
+    return showVegan ? _veganProducts : _products;
+  }
+
+  Stream<List<Product>> get productsStream {
+    return dataRepository.productStream;
+  }
+
+  productsStreamListener() {
+    dataRepository.productStream.listen((products) {
+      print("Products Stream: $products");
+      _cachedStreamProducts = products;
+      notifyListeners();
+    });
   }
 
   Future<void> addProduct(String name, String description, double price,
@@ -85,7 +174,11 @@ class DataProvider extends ChangeNotifier {
         isVegan: isVegan,
         hasCaffeine: hasCaffeine,
         imageIsAsset: false);
-    _products.add(newProduct);
+    _products.insert(0, newProduct);
+    if (isVegan) {
+      _veganProducts.insert(0, newProduct);
+    }
+
     dataRepository.addProduct(newProduct);
     notifyListeners();
   }
@@ -139,5 +232,19 @@ class DataProvider extends ChangeNotifier {
     _products.removeWhere((product) => product.id == id);
     dataRepository.deleteProduct(id);
     notifyListeners();
+  }
+
+  Stream<bool> serverStatusStream(Duration interval) async* {
+    yield true;
+    while (true) {
+      try {
+        final response = await get(Uri.parse('http://localhost:3000/health'))
+            .timeout(const Duration(seconds: 2));
+        yield response.statusCode == 200;
+      } catch (_) {
+        yield false;
+      }
+      await Future.delayed(interval);
+    }
   }
 }
