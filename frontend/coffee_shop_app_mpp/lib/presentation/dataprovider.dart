@@ -238,8 +238,9 @@ class DataProvider extends ChangeNotifier {
     yield true;
     while (true) {
       try {
-        final response = await get(Uri.parse('http://localhost:3000/health'))
-            .timeout(const Duration(seconds: 2));
+        final response = await get(Uri.parse(
+                'https://flutter-nodejs-university-project.onrender.com/health'))
+            .timeout(const Duration(seconds: 2000));
         yield response.statusCode == 200;
       } catch (_) {
         yield false;

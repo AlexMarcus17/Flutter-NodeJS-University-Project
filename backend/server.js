@@ -37,7 +37,14 @@ const ProductStats = mongoose.model("ProductStats", productStatsSchema);
 
 // ----- Express App -----
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
+const fs = require('fs');
+
+const uploadDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir);
+}
+
 
 app.use(express.json());
 app.use(cors());
@@ -104,7 +111,7 @@ app.get("/health", (_, res) => res.status(200).send("OK"));
 
 app.post("/upload", upload.single("image"), (req, res) => {
   if (!req.file) return res.status(400).json({ error: "No image uploaded" });
-  const imageUrl = `http://localhost:${PORT}/uploads/${req.file.filename}`;
+const imageUrl = `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}`;
   res.json({ imageUrl });
 });
 

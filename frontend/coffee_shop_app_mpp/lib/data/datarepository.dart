@@ -9,10 +9,14 @@ import 'package:web_socket_channel/io.dart';
 import 'product.dart';
 
 class DataRepository {
-  final String baseUrl = 'http://localhost:3000/products';
-  final String statsUrl = 'http://localhost:3000/stats';
-  final _channel = IOWebSocketChannel.connect('ws://localhost:3000');
-  final _statsChannel = IOWebSocketChannel.connect('ws://localhost:3000/stats');
+  final String baseUrl =
+      'https://flutter-nodejs-university-project.onrender.com/products';
+  final String statsUrl =
+      'https://flutter-nodejs-university-project.onrender.com/stats';
+  final _channel = IOWebSocketChannel.connect(
+      'wss://flutter-nodejs-university-project.onrender.com');
+  final _statsChannel = IOWebSocketChannel.connect(
+      'wss://flutter-nodejs-university-project.onrender.com/stats');
 
   late final Stream<List<Product>> _productBroadcastStream =
       _channel.stream.map((data) {
@@ -47,7 +51,6 @@ class DataRepository {
     }
   }
 
-  /// Fetch only vegan products
   Future<List<Product>> getVeganProducts(
       {int offset = 0, int limit = 6}) async {
     try {
@@ -64,16 +67,14 @@ class DataRepository {
     }
   }
 
-  /// Add a new product
   Future<void> addProduct(Product product) async {
     try {
       String finalImage = product.image;
       bool imageIsAsset = product.imageIsAsset;
 
-      // Upload image if it's a file path (not a URL)
       if (!finalImage.startsWith('http')) {
         finalImage = await _uploadImage(File(product.image));
-        imageIsAsset = true; // Since it's now a URL
+        imageIsAsset = true;
       }
 
       final response = await http.post(
@@ -92,7 +93,6 @@ class DataRepository {
     }
   }
 
-  /// Update a product
   Future<void> updateProduct(
     String id,
     String name,
@@ -106,10 +106,9 @@ class DataRepository {
     try {
       String finalImage = image;
 
-      // Upload if the image is a local file
       if (!image.startsWith('http')) {
         finalImage = await _uploadImage(File(image));
-        imageIsAsset = true; // Convert file path to URL
+        imageIsAsset = true;
       }
 
       final response = await http.put(
@@ -134,7 +133,6 @@ class DataRepository {
     }
   }
 
-  /// Delete a product
   Future<void> deleteProduct(String id) async {
     try {
       final response = await http.delete(Uri.parse('$baseUrl/$id'));
@@ -146,13 +144,17 @@ class DataRepository {
     }
   }
 
-  /// Upload image and return its URL
   Future<String> _uploadImage(File imageFile) async {
     final mimeType = lookupMimeType(imageFile.path);
     final request = http.MultipartRequest(
-        'POST', Uri.parse('http://localhost:3000/upload'))
-      ..files.add(await http.MultipartFile.fromPath('image', imageFile.path,
-          contentType: mimeType != null ? MediaType.parse(mimeType) : null));
+      'POST',
+      Uri.parse(
+          'https://flutter-nodejs-university-project.onrender.com/upload'),
+    )..files.add(await http.MultipartFile.fromPath(
+        'image',
+        imageFile.path,
+        contentType: mimeType != null ? MediaType.parse(mimeType) : null,
+      ));
 
     final streamedResponse = await request.send();
     final response = await http.Response.fromStream(streamedResponse);
