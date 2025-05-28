@@ -48,7 +48,10 @@ if (!fs.existsSync(uploadDir)) {
 
 app.use(express.json());
 app.use(cors());
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+app.use("/uploads", (req, res, next) => {
+  res.header("Access-Control-Allow-Origin", "*"); // For production, replace * with your frontend domain
+  next();
+}, express.static(path.join(__dirname, "uploads")));
 
 // Image Upload
 const storage = multer.diskStorage({
